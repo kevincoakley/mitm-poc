@@ -2,30 +2,47 @@ from flask import Flask, request, jsonify, make_response
 from waitress import serve
 import requests
 import json
+import os
+import logging
 
 # Create a Flask application instance
 app = Flask(__name__)
 
 # Configuration for the remote server
-REMOTE_HOST = "127.0.0.1"
-REMOTE_PORT = 11434
-FORBIDDEN_PATHS = ["/api/pull"]
-TIMEOUT = 600
+if "REMOTE_HOST" in os.environ:
+    REMOTE_HOST = os.environ["REMOTE_HOST"]
+else:
+    REMOTE_HOST = "127.0.0.1"
 
-# API key and secret pair
+if "REMOTE_PORT" in os.environ:
+    REMOTE_PORT = int(os.environ["REMOTE_PORT"])
+else:
+    REMOTE_PORT = "11434"
+
+# Configuration for the proxy server
+FORBIDDEN_PATHS = ["/api/pull"]
 API_KEY_SECRET = {"1234": "5678"}
 
 # Flags for controlling print output for debugging
-DEBUG = False
+if "DEBUG" in os.environ:
+    if os.environ["DEBUG"] == "True":
+        DEBUG = True
+    elif os.environ["DEBUG"] == "False":
+        DEBUG = False
+    else:
+        DEBUG = True
+else:
+    DEBUG = True
+
 PRINT_HEADERS = False
 PRINT_REPONSE = False
 
 
 def print_headers(headers):
     """Print all headers from the incoming request if PRINT_HEADERS is True."""
-    print("Received Headers:")
+    app.logger.debug("Received Headers:")
     for key, value in headers.items():
-        print(f"{key}: {value}")
+        app.logger.debug(f"{key}: {value}")
 
 
 def check_forbidden_paths(path):
@@ -87,24 +104,41 @@ def forward_request(path, api_key):
             response_json = json.loads(resp.text)
 
             if PRINT_REPONSE:
-                print("Response JSON:", json.dumps(response_json, indent=2))
-            
+                app.logger.debug(
+                    f"Response JSON: {json.dumps(response_json, indent=2)}"
+                )
+
             # Print API key and token counts if available
-            print("API Key:", api_key)
-            
+            app.logger.info(f"API Key: {api_key}")
+
             if "prompt_eval_count" in response_json:
-                print("Input Token Count:", response_json["prompt_eval_count"])
+                app.logger.info(
+                    f"Input Token Count: {response_json['prompt_eval_count']}"
+                )
             if "eval_count" in response_json:
-                print("Response Token Count:", response_json["eval_count"])
+                app.logger.info(f"Response Token Count: {response_json['eval_count']}")
 
         except json.JSONDecodeError:
-            print("Response is not valid JSON:", resp.text)
+            app.logger.error(f"Response is not valid JSON: {resp.text}")
 
     return resp.json(), resp.status_code
 
 
 if __name__ == "__main__":
+
+    if DEBUG:
+        log_level = logging.DEBUG
+    else:
+        log_level = logging.INFO
+
+    logging.basicConfig(level=log_level, format="%(asctime)s %(message)s")
+
+    app.logger.info("Starting Ollama Proxy Server...")
+    app.logger.info(f"Remote Host: {REMOTE_HOST}")
+    app.logger.info(f"Remote Port: {REMOTE_PORT}")
+    app.logger.info(f"Debug Mode: {DEBUG}")
+
     if DEBUG:
         app.run(debug=True, port=8080)
     else:
-        serve(app, host='0.0.0.0', port=8080)
+        serve(app, host="0.0.0.0", port=8080)
