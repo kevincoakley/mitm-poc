@@ -1,4 +1,5 @@
 from flask import Flask, request, jsonify, make_response
+from waitress import serve
 import requests
 import json
 
@@ -15,6 +16,7 @@ TIMEOUT = 600
 API_KEY_SECRET = {"1234": "5678"}
 
 # Flags for controlling print output for debugging
+DEBUG = False
 PRINT_HEADERS = False
 PRINT_REPONSE = False
 
@@ -83,13 +85,18 @@ def forward_request(path, api_key):
     if resp.status_code == 200:
         try:
             response_json = json.loads(resp.text)
+
             if PRINT_REPONSE:
                 print("Response JSON:", json.dumps(response_json, indent=2))
+            
+            # Print API key and token counts if available
             print("API Key:", api_key)
+            
             if "prompt_eval_count" in response_json:
                 print("Input Token Count:", response_json["prompt_eval_count"])
             if "eval_count" in response_json:
                 print("Response Token Count:", response_json["eval_count"])
+
         except json.JSONDecodeError:
             print("Response is not valid JSON:", resp.text)
 
@@ -97,4 +104,7 @@ def forward_request(path, api_key):
 
 
 if __name__ == "__main__":
-    app.run(debug=True, port=8080)
+    if DEBUG:
+        app.run(debug=True, port=8080)
+    else:
+        serve(app, host='0.0.0.0', port=8080)
