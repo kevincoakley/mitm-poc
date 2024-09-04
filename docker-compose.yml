@@ -1,0 +1,21 @@
+---
+services:
+  ollama-middleware:
+    image: ollama-middleware:latest
+    restart: always
+    environment:
+      - DEBUG=False
+      - REMOTE_HOST=ollama
+      - REMOTE_PORT=11434
+    ports:
+      - 8080:8080
+    depends_on:
+      ollama:
+        condition: service_started
+
+  ollama:
+    image: ollama/ollama:0.3.9
+    restart: always
+    volumes:
+      # Mount the ollama folder
+      - ~/.ollama:/root/.ollama:rw
